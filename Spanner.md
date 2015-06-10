@@ -9,7 +9,7 @@ Spanner是Google的一个可扩展，多版本控制，全球分布式的同步�
 这个接口的设计及其实现对于支持外部一致性和Spanner的很多关键性功能是至关重要的。
 这些关键性功能包括：非阻塞旧数据读取，无锁的只读事务，数据表结构原子更改等。
 
-## 介绍
+## 1 介绍
 
 Spanner是由Google设计、开发和部署的一个可扩展的，全球分布式数据库。简单地看，它是一个通过多个分布在不同数据中心的Paxos[21]状态机来存储数据切分的数据库。它利用了Paxos的副本机制来保证全球可用性(Availability)和区域的局部性(Locality)。客户端会自动地进行副本之间的故障转移(failover)。当数据或者服务器数量变化时，Spanner会自动地重新切分和分布数据（可以分步到不同数据中心）来更好地平衡负载和应对可能的错误。Spanner是为了在数百个数据中心中的数百万个数据服务器中存数千亿级别的数据行设计的。
 
@@ -25,7 +25,7 @@ Spanner能够给分布或者非分布的事务分配有意义的全局时间戳�
 
 章节二主要介绍Spanner的实现，功能以及设计相关的工程决定。章节三介绍了创新的TrueTime接口和其简略的实现。章节四介绍了Spanner如何利用TrueTime接口来实现外部一致事务、无锁只读事务和原子数据表结构更新。章节五提供了Spanner的性能测试情况以及TrueTime的表现情况并且讨论了关于F1的使用经验。章节六、七、八分别对相关工作、今后方向进行了介绍并对全文进行总结。
 
-## 实现
+## 2 实现
 
 这章节主要介绍Spanner的结构以及实现原理。其次介绍了用于管理复制和局部性的抽象目录结构,它也是移动数据的基本单元。最后介绍了Spanner的数据模型，Spanner相比于键值存储更类似关系型数据库的原因，以及应用如何控制数据局部性。
 
@@ -34,4 +34,12 @@ Spanner能够给分布或者非分布的事务分配有意义的全局时间戳�
 Spanner universe是由多个zones组成的。每个zone都类似于一个Bigtable [9]服务器组的部署，也是管理的基本单元。这些zones的集合也是数据被复制的位置的集合。当有新的数据中心投入运行时，Zones可以被添加到在运行的Spanner系统中；当有旧的数据中心被关闭时，Zones可以被从正在运行的系统中移除。Zones还是物理隔离的基本单元，在某些情况下每个数据中心中可能会有多个Zones：比如，属于不同应用的数据必须被分区存储到一个数据中心的不同的服务器集合之中。
 
 图1展示了在一个Spanner universe中的服务器。一个zone包括一个zonemaster以及一百至几千个spanserver。zonemaster负责分配数据给spanservers；spanservers负责把数据提供给用户。客户通过每个zone上的location proxy来找到已经分配为它提供数据的spanserver。目前universe master和placement driver都只有一个。Universe master主要作为一个控制台来显示关于所有zones的信息并且提供互动调试。Placement driver管理数据在zones之间进行分钟级别的移动。它会定期地于spanservers通讯来确定因复制约束变更或者平衡负载而需要被移动的数据。由于文字有限，我们讲仅详细介绍spanserver。
+
+### 2.1 Spanserver软件栈
+
+这一章节主要通过介绍spanserver的实现来解释如何在基于类似Bigtable的实现上完成复制和分布式事务。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。每一个tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
+```
+(key:string, timestamp:int64) -> string
+```
+不同于Bigtable, Spanner会分配给data对应的时间戳。 这也是Spanner相比于键值存更像多版本数据库的重要原因。每一个tablet的状态被存在一个类似B-tree的文件集合和一个write-ahead日志中。文件和日志都被存储在Colossus(即Google File System [15]的继承系统)分布式文件系统中。
 
