@@ -37,9 +37,9 @@ Spanner universe是由多个zones组成的。每个zone都类似于一个Bigtabl
 
 ### 2.1 Spanserver软件栈
 
-这一章节主要通过介绍spanserver的实现来解释如何在基于类似Bigtable的实现上完成复制和分布式事务。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。每一个tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
+这一章节主要通过介绍spanserver的实现来解释如何在基于类似Bigtable的实现上完成复制和分布式事务功能。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。Tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
 ```
 (key:string, timestamp:int64) -> string
 ```
-不同于Bigtable, Spanner会分配给data对应的时间戳。 这也是Spanner相比于键值存更像多版本数据库的重要原因。每一个tablet的状态被存在一个类似B-tree的文件集合和一个write-ahead日志中。文件和日志都被存储在Colossus(即Google File System [15]的继承系统)分布式文件系统中。
+不同于Bigtable, Spanner会分配给tablet数据时间戳。 这也是Spanner相比于键值存更像多版本数据库的重要原因。每一个tablet的状态被存在一个类似B-tree的文件集合和一个write-ahead日志中。文件和日志都被存储在Colossus(即Google File System [15]的继承系统)分布式文件系统中。
 
