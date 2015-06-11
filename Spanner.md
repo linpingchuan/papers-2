@@ -27,7 +27,7 @@ Spanner能够给分布或者非分布的事务分配有意义的全局时间戳�
 
 ## 2 实现
 
-这章节主要介绍Spanner的结构以及实现原理。其次介绍了用于管理复制和局部性的抽象目录结构,它也是移动数据的基本单元。最后介绍了Spanner的数据模型，Spanner相比于键值存储更类似关系型数据库的原因，以及应用如何控制数据局部性。
+本节主要介绍Spanner的结构以及实现原理。其次介绍了用于管理复制和局部性的抽象目录结构,它也是移动数据的基本单元。最后介绍了Spanner的数据模型，Spanner相比于键值存储更类似关系型数据库的原因，以及应用如何控制数据局部性。
 
 每一个Spanner的部署称作为一个universe。一个Spanner universe可以管理全球规模的数据，因此通常只会运行很少的universes。我们目前运行了一个用于测试的universe, 一个用于开发、线上的universe以及一个只针对线上的universe。
 
@@ -37,9 +37,12 @@ Spanner universe是由多个zones组成的。每个zone都类似于一个Bigtabl
 
 ### 2.1 Spanserver软件栈
 
-这一章节主要关注spanserver的实现,并介绍如何在基于类似Bigtable的tablet上实现复制和分布式事能。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。Tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
+本节主要关注spanserver的实现,并介绍如何在基于类似Bigtable的tablet上实现复制和分布式事务。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。Tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
 ```
 (key:string, timestamp:int64) -> string
 ```
 不同于Bigtable, Spanner会分配给tablet数据时间戳。 这也是Spanner相比于键值存更像多版本数据库的重要原因。每一个tablet的状态被存在一个类似B-tree的文件集合和一个write-ahead日志中。文件和日志都被存储在Colossus(即Google File System [15]的继承系统)分布式文件系统中。
 
+为了支持复制，spanserver在每个tablet上实现了一个Paxos状态机。（最初, Spanner在每个tablet上实现了多个Paxos状态机。这样可以更灵活地配置副本。我们最终放弃了这样的实现，因为它过于复杂。）每一个状态机都在对应的tablet上存储了它的元数据和日志。我们的Paxos实现支持long-lived leaders以及基于时间的leader lease。lease的默认时间是10秒。目前Spanner的实现记录每个Paxos的写入操作两次：一次在tablet的日志中，另一次在Paxos的日志中。我们仅仅是为了方便而这样实现, 我们很可能在今后对它进行改进。（译者注：大部分的已知一致性系统都是存储两次日志数据：在一致性协议中和应用中。合并日志并不是一个简单的工作，因为它还涉及到日志的Compaction等问题。）我们的Paxos实现了pipeline来提升在广域网高延时情况下的吞吐量；写入操作仍旧是按照顺序被Paxos来执行的（我们第四章节依赖这个事实）。
+
+Paxos状态机是用来保证映射副本的一致性。每个副本的键值映射都被存在相应的tablet中。写入操作必须由Paxos协议的leader来发起；读取操作可以访问任意一个足够新（译者注：足够新即replica读取返回的结果是读请求到达时最新的或者更新的。例如读请求到达时刻为T0，读返回时刻为T1。返回的的结果必须保证是一个在T0-T1时间范围内某个在所有副本中最新的值。）的replica（译者注：在讨论读写操作所时，Paxos中的状态机一般被称为replica）。每个Paxos单元是由一组replica构成的（译者注：一般由3到5个replica构成）。
