@@ -37,7 +37,7 @@ Spanner universe是由多个zones组成的。每个zone都类似于一个Bigtabl
 
 ### 2.1 Spanserver软件栈
 
-这一章节主要通过介绍spanserver的实现来解释如何在基于类似Bigtable的实现上完成复制和分布式事务功能。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。Tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
+这一章节主要关注spanserver的实现,并介绍如何在基于类似Bigtable的tablet上实现复制和分布式事能。图2显示了spanserver的软件栈。在最底部，每个spanserver负责管理成百上千个被成为tablet的数据结构实体。Tablet类似于Bigtable的tablet，因为它也实现了如下的映射关系：
 ```
 (key:string, timestamp:int64) -> string
 ```
