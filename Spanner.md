@@ -43,3 +43,6 @@ Spanner universe是由多个zones组成的。每个zone都类似于一个Bigtabl
 ```
 不同于Bigtable, Spanner会分配给tablet数据时间戳。 这也是Spanner相比于键值存更像多版本数据库的重要原因。每一个tablet的状态被存在一个类似B-tree的文件集合和一个write-ahead日志中。文件和日志都被存储在Colossus(即Google File System [15]的继承系统)分布式文件系统中。
 
+spanserver在每个tablet上实现了一个Paxos状态机来管理副本。（最初的Spanner在每个tablet上实现了多个Paxos状态机。这样可以更灵活地配置副本。我们最终放弃了这样的实现，因为它过于复杂。）每一个状态机都在对应的tablet上存储了它的元数据和日志。我们的Paxos实现支持long-lived leaders以及基于时间的leader lease。lease的默认时间是10秒。目前Spanner的实现记录每个Paxos的写入操作两次：一次在tablet的日志中，另一次在Paxos的日志中。我们仅仅是为了方便而这样实现, 我们很可能在今后对它进行改进。（译者注：大部分的已知一致性系统都是存储两次日志数据：在一致性协议中和应用中。合并日志并不是一个简单的工作，因为它还涉及到日志的Compaction等问题。）我们的Paxos实现了pipeline来提升在广域网高延时情况下的吞吐量；写入操作仍旧是按照顺序被Paxos来执行的（我们第四章节依赖这个事实）。
+
+Paxos状态机是用来保证映射副本的一致性。每个副本的键值映射都被存在相应的tablet中。写入操作必须由Paxos协议的leader来发起；读取操作可以访问任意一个足够新的replica（译者注：在讨论读写操作所时，Paxos中的状态机一般被称为replica）。每个Paxos单元是由一组replica构成的（译者注：一般由3到5个replica构成）。
